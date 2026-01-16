@@ -1,0 +1,128 @@
+package com.example.biometricauth
+
+import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import android.provider.Settings
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.biometric.BiometricManager
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Button
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.fragment.app.FragmentActivity
+import com.example.biometricauth.biometric.BioMetricPromptManager
+import com.example.biometricauth.biometric.BioMetricResult
+import com.example.biometricauth.ui.theme.BiometricAuthTheme
+
+class MainActivity : FragmentActivity() {
+
+    private val promptManager by lazy { BioMetricPromptManager(this) }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            BiometricAuthTheme {
+                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                    val bioMetricResult by promptManager.resultChannel.collectAsState(initial = null)
+                    val enrollLauncher = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.StartActivityForResult(),
+                        onResult = {
+                            println("ZACT Activity result $it")
+                        }
+                    )
+                    LaunchedEffect(bioMetricResult) {
+                        if (bioMetricResult is BioMetricResult.AuthenticationNotSet) {
+                            if (Build.VERSION.SDK_INT >= 30) {
+                                val enrollIntent = Intent(Settings.ACTION_BIOMETRIC_ENROLL).apply {
+                                    putExtra(
+                                        Settings.EXTRA_BIOMETRIC_AUTHENTICATORS_ALLOWED,
+                                        BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                                                BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                                    )
+                                }
+                                enrollLauncher.launch(enrollIntent)
+                            }
+                        }
+                    }
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Button(onClick = {
+                            promptManager.showBioMetricPrompt(
+                                "Sample Prompt",
+                                "Sample Prompt description"
+                            )
+                        }
+                        ) {
+                            Text("Authenticate")
+                        }
+
+                        bioMetricResult?.let { result ->
+                            Text(
+                                text = when (result) {
+                                    is BioMetricResult.AuthenticationError -> {
+                                        result.error
+
+                                    }
+
+                                    BioMetricResult.AuthenticationFailed -> {
+                                        "Authentication Failed"
+                                    }
+
+                                    BioMetricResult.AuthenticationNotSet -> {
+                                        "Authentication Not set"
+                                    }
+
+                                    BioMetricResult.AuthenticationSuccess -> {
+                                        "Authentication Success"
+                                    }
+
+                                    BioMetricResult.FeatureUnAvailable -> {
+                                        "Feature Not Available"
+                                    }
+
+                                    BioMetricResult.HardwareUnAvailable -> {
+                                        "Hardware unavailable"
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun Greeting(name: String, modifier: Modifier = Modifier) {
+    Text(
+        text = "Hello $name!",
+        modifier = modifier
+    )
+}
+
+@Preview(showBackground = true)
+@Composable
+fun GreetingPreview() {
+    BiometricAuthTheme {
+        Greeting("Android")
+    }
+}

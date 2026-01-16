@@ -28,8 +28,18 @@ import com.example.biometricauth.biometric.BioMetricPromptManager
 import com.example.biometricauth.biometric.BioMetricResult
 import com.example.biometricauth.ui.theme.BiometricAuthTheme
 
+/**
+ * Main activity for the biometric authentication demo.
+ * 
+ * Extends FragmentActivity (not ComponentActivity) because BiometricPrompt
+ * requires FragmentManager support, which FragmentActivity provides.
+ */
 class MainActivity : FragmentActivity() {
 
+    /**
+     * Lazy initialization of BioMetricPromptManager to avoid creating it
+     * before the activity is fully initialized.
+     */
     private val promptManager by lazy { BioMetricPromptManager(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,13 +48,29 @@ class MainActivity : FragmentActivity() {
         setContent {
             BiometricAuthTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                    /**
+                     * Collect authentication results from the Flow.
+                     * collectAsState converts the Flow into a Compose state that
+                     * triggers recomposition when new results arrive.
+                     */
                     val bioMetricResult by promptManager.resultChannel.collectAsState(initial = null)
+                    
+                    /**
+                     * Launcher for opening device settings when biometric enrollment is needed.
+                     * Only available on Android 11+ (API 30+).
+                     */
                     val enrollLauncher = rememberLauncherForActivityResult(
                         contract = ActivityResultContracts.StartActivityForResult(),
                         onResult = {
                             println("ZACT Activity result $it")
                         }
                     )
+                    
+                    /**
+                     * Automatically navigate to enrollment settings if user hasn't set up
+                     * biometric authentication. This provides a better UX by guiding users
+                     * to complete the setup process.
+                     */
                     LaunchedEffect(bioMetricResult) {
                         if (bioMetricResult is BioMetricResult.AuthenticationNotSet) {
                             if (Build.VERSION.SDK_INT >= 30) {
